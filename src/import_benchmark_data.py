@@ -18,6 +18,11 @@ def idx_not_query(df, idx, val):
     return df[df.index.get_level_values(idx) != val]
 
 
+def idx_keep_only(df, keep):
+    drop_idxs = [x for x in df.index.names if x not in keep]
+    return df.reset_index(level=drop_idxs, drop=True)
+
+
 def clean_hash(s):
     return s.replace("hash: ", "").replace("\n", "")
 
