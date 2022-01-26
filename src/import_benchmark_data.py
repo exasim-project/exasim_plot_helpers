@@ -7,6 +7,8 @@ import Owls as ow
 from pathlib import Path
 from packaging import version
 
+from helpers import idx_query
+
 
 def clean_hash(s):
     return s.replace("hash: ", "").replace("\n", "")
