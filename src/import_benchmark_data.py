@@ -8,21 +8,6 @@ from pathlib import Path
 from packaging import version
 
 
-def idx_query(df, idx, val):
-    """Shortcut to select specific index."""
-    return df[df.index.get_level_values(idx) == val]
-
-
-def idx_not_query(df, idx, val):
-    """Shortcut to filter specific index."""
-    return df[df.index.get_level_values(idx) != val]
-
-
-def idx_keep_only(df, keep):
-    drop_idxs = [x for x in df.index.names if x not in keep]
-    return df.reset_index(level=drop_idxs, drop=True)
-
-
 def clean_hash(s):
     return s.replace("hash: ", "").replace("\n", "")
 
@@ -190,6 +175,7 @@ def import_results(
                     "linear_solve_p",
                     "linear_solve_U",
                     "number_iterations_p",
+                    "number_iterations_U",
                     # "init_precond",
                     # "update_host_matrix",
                     # "retrieve_results",
