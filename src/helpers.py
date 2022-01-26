@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 #
 #
+def idx_larger_query(df, idx, val):
+    """Shortcut to select specific index."""
+    return df[df.index.get_level_values(idx) > val]
+
+
 def idx_query(df, idx, val):
     """Shortcut to select specific index."""
     return df[df.index.get_level_values(idx) == val]

@@ -173,7 +173,8 @@ def import_results(
     for log_hash, rets in logs.items():
         for ret in rets:
             try:
-                latest_time = max(ret.index.get_level_values("Time"))
+                # first_time = max(ret.index.get_level_values("Time"))
+                first_time = min(ret.index.get_level_values("Time"))
                 for key in [
                     "linear_solve_p",
                     "linear_solve_U",
@@ -183,8 +184,8 @@ def import_results(
                     # "update_host_matrix",
                     # "retrieve_results",
                 ]:
-                    df.loc[df["log_id"] == log_hash, key] = idx_query(
-                        ret, "Time", latest_time
+                    df.loc[df["log_id"] == log_hash, key] = idx_larger_query(
+                        ret, "Time", first_time
                     )[key].mean()
                 gko_keys = [
                     "init_precond",
@@ -194,13 +195,13 @@ def import_results(
                 ]
                 for key in gko_keys:
                     if key in ret.columns:
-                        df.loc[df["log_id"] == log_hash, key] = idx_query(
-                            ret, "Time", latest_time
+                        df.loc[df["log_id"] == log_hash, key] = idx_larger_query(
+                            ret, "Time", first_time
                         )[key].mean()
                     else:
                         df.loc[df["log_id"] == log_hash, key] = 0
 
-                deltaT = ret["ClockTime"].dropna().diff().values[-1]
+                deltaT = ret["ClockTime"].dropna().diff()[2:].sum()
                 df.loc[df["log_id"] == log_hash, "deltaT"] = deltaT
             except Exception as e:
                 print("import_benchmark_data", e)
