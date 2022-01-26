@@ -43,6 +43,7 @@ def parse_log_strings(log_content):
             "ExecutionTime ": ["ExecutionTime", "ClockTime"],
             "init_precond": ["Precond_Proc", "init_precond"],
             "update_host_matrix ": ["Update_Proc", "update_host_matrix"],
+            "]solve ": ["Solve_Proc", "gko_solve"],
             "retrieve_results_from_device ": ["Retrieve_Proc", "retrieve_results"],
         }
     )
@@ -187,6 +188,7 @@ def import_results(
                     "init_precond",
                     "update_host_matrix",
                     "retrieve_results",
+                    "gko_solve",
                 ]
                 for key in gko_keys:
                     if key in ret.columns:
@@ -196,7 +198,7 @@ def import_results(
                     else:
                         df.loc[df["log_id"] == log_hash, key] = 0
 
-                deltaT = ret["ClockTime"].diff().values[-1]
+                deltaT = ret["ClockTime"].dropna().diff().values[-1]
                 df.loc[df["log_id"] == log_hash, "deltaT"] = deltaT
             except Exception as e:
                 print("import_benchmark_data", e)
