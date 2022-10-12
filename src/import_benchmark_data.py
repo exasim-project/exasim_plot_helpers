@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import matplotlib.pyplot as plt
 
 import os
 import pandas as pd
@@ -7,12 +8,71 @@ import Owls as ow
 from pathlib import Path
 from packaging import version
 
-from helpers import idx_larger_query
+from helpers import idx_larger_query, idx_keep_only
+
+
+def line_plot(df, x, columns, facet, properties, 
+              fig, axes, kind="line", x_label=None, 
+              facet_is_legend=False, add_to_legend=""):
+    """wrapper around plot"""
+    lines = list(set(df.index.get_level_values(facet)))
+    lines.sort()
+    default_colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+        
+    for i, q in enumerate(columns):
+        for j,line in enumerate(lines):
+            sel = df[df.index.get_level_values(facet) == line]
+            sel = idx_keep_only(sel,  keep=[x])
+            ax = axes[i]
+            legends = properties.get("legends")
+            if facet_is_legend == "final":
+                legend = add_to_legend
+            if facet_is_legend == "add":
+                legend = line + "_" + add_to_legend
+            if not add_to_legend:
+                legend = line
+            f = sel.sort_index().plot(
+                legend=True,
+                label=legend,
+                lw=3,
+                ms=10,
+                kind=kind,
+                ax=ax,
+                linestyle=properties.get("linestyle", lambda x: "-")(line),
+                marker=properties["marker"](line),
+                color=properties.get("color", lambda x: default_colors[j])(line),
+            )
+            
+            if x_label:
+                ax.set_xlabel(x_label[i])
+            if legends:
+                plt.legend(legends)
+            plt.legend(handlelength=5)
+
 
 
 def clean_hash(s):
     return s.replace("hash: ", "").replace("\n", "")
 
+def get_case_from_header(header):
+    if len(header) < 15:
+        return ""
+    header = header[15].split(":")[-1]
+    return header.replace("/hkfs/home/project/hk-project-test-fine/eq4036/data/code/polimi-nose-labbook/nose/preconditioner/Variation_matrix_solver", "").replace("Variation_", "").replace("base","").replace("_gko", "").replace("_of", "")
+
+def get_slurm_reports(s):
+    """ get everything from 25*= JOB FEEDBACK to hash """
+    slurm_start = 0
+    slurm_end = 0
+        
+    for i, line in enumerate(s):
+        if "="*10 in line and "JOB FEEDBACK" in line:
+            slurm_start = i
+        if "hash: " in line:
+            slurm_end = i
+            break
+        
+    return s[slurm_end], s[slurm_start:slurm_end-1], s[slurm_end+1:]
 
 def read_logs(folder):
     """Reads the logs file in the folder."""
@@ -33,20 +93,28 @@ def parse_log_strings(log_content):
     """Convert a list of of log strings to a dictionary of foam frames."""
 
     logs = {}
+    case = ""
     for log in log_content:
-        log_ = log.split("\n")
-        log_header = log_[0]
-        log_body = log_[1:]
-        logs.update({clean_hash(log_header): log_body})
+        log_ = log.split("\n") 
+        log_header, slurm_report, log_body  = get_slurm_reports(log_)
+        case = get_case_from_header(log_body)
+        try:
+            end = log_body[-2]
+        except:
+            end = ""
+        if not "Finalising" in end:
+                continue
+        logs.update({clean_hash(log_header): (log_body, slurm_report, case)})
 
     keys = {"linear solve " + f: ["linear_solve_" + f] for f in ["U", "p"]}
     keys.update(
         {
             "ExecutionTime ": ["ExecutionTime", "ClockTime"],
             "init_precond": ["Precond_Proc", "init_precond"],
-            "update_host_matrix ": ["Update_Proc", "update_host_matrix"],
-            "]solve ": ["Solve_Proc", "gko_solve"],
-            "retrieve_results_from_device ": ["Retrieve_Proc", "retrieve_results"],
+            "update_host_matrix_data": ["Update_Proc", "update_host_matrix"],
+            "]solve": ["Solve_Proc", "gko_solve"],
+            "copy_x_back": ["Retrieve_Proc", "retrieve_results"],
+            "delta t build": ["build_dist", "write_mat_data", "build_repart", "gather"],
         }
     )
     keys.update(
@@ -59,17 +127,22 @@ def parse_log_strings(log_content):
             for f in ["p", "U"]
         }
     )
-
-    for log_hash, log_content in logs.items():
+    invalid = []
+    for log_hash, (log_content, slurm_report, case) in logs.items():
         if not log_content:
             continue
         try:
-            logs[log_hash] = [ow.io.import_log_from_str(log_content, keys)]
+            logs[log_hash] = [ow.io.import_log_from_str(log_content, keys), slurm_report, case]
         except Exception as e:
-            print(e)
+            print("parse_log_strings", e)
+            invalid.append(log_hash)
             pass
-
+        
+    for i in invalid:
+        print("popping",i)
+        logs.pop(i)
     return logs
+
 
 
 def process_meta_data(s):
@@ -91,7 +164,7 @@ def process_meta_data(s):
             return None
 
 
-def read_ogl_data_folder(folder, min_version="0.0.0"):
+def read_ogl_data_folder(folder, filt, min_version="0.0.0"):
     """Reads all csv files and logs from the given folder.
 
     returns a concatenated dataframe
@@ -101,18 +174,27 @@ def read_ogl_data_folder(folder, min_version="0.0.0"):
     metadata = {}
 
     folder = Path(folder)
+    logs_folder = folder / "Logs"
+    if not logs_folder.exists():
+        print( folder, "does not contain a Logs folder")
+        raise Exeception
+        
+    print("importing Logs", folder / "Logs")
 
     logs = parse_log_strings(read_logs(folder / "Logs"))
 
     _, _, reports = next(os.walk(folder))
     for r in reports:
         fn = folder / r
+        if filt in r:
+            continue
 
         with open(fn) as csv_handle:
             # read metadata
             try:
                 content = csv_handle.readlines()
-            except:
+            except Exception as e:
+                print(e)
                 continue
             metadata = process_meta_data(content[1])
             if not metadata:
@@ -135,14 +217,22 @@ def read_ogl_data_folder(folder, min_version="0.0.0"):
 def import_results(
     path,
     case,
+    campaign,
+    revision,
     filt=None,
     min_version="0.0.0",
-    short_hostnames=False,
+    short_hostname_map=False,
     reset_ogl_version=False,
+    transform_resolution=True,
+    resolution_map=None,
+    skip_zero_runtime=False
 ):
     """Import and postprocess obr benchmark results."""
-    path = Path(path)
-    df, metadata, logs = read_ogl_data_folder(path / case, min_version)
+    path = Path(path) / revision / case / campaign 
+    if not (path).exists():
+        print(path, "not existent")
+        raise Exception
+    df, metadata, logs = read_ogl_data_folder(path , filt, min_version)
 
     # to use pandas multiindices data and non-data columns need to be separated
     data_columns = [
@@ -155,26 +245,46 @@ def import_results(
         "linear_solve_p",
         "init_linear_solve_U",
         "linear_solve_U",
+        "timestamp",
+        "update_host_matrix",
+        "retrieve_results",
+        "gather"
     ]
 
     df["solver_p"] = df["solver_p"].transform(
         lambda x: x.replace("GKO", "").replace("P", "")
     )
-
-    if short_hostnames:
-        df["node"] = df["node"].transform(lambda x: short_hostnames(x))
+    def short_hostname(x):
+        for key, value in short_hostname_map.items():
+            if key in x:
+                return value
+    
+    if short_hostname_map:
+        df["node"] = df["node"].transform(lambda x: short_hostname(x))
+        
+    if transform_resolution:
+        df["resolution"] = df["resolution"].transform(lambda x: x**3)
+    
+    if resolution_map:
+        df["resolution"] = df["resolution"].transform(lambda x: resolution_map[x])
 
     indices = [c for c in df.columns if c not in data_columns]
 
     df["linear_solve_p"] = 0
     df["linear_solve_U"] = 0
+    df["EnergyConsumed"] = 0
+
 
     # Refactor
     for log_hash, rets in logs.items():
+        rets, slurm_logs, case = rets[0:-2], rets[-2], rets[-1]
         for ret in rets:
             try:
                 # first_time = max(ret.index.get_level_values("Time"))
-                first_time = min(ret.index.get_level_values("Time"))
+                # first_time = min(ret.index.get_level_values("Time"))
+                first_time = ret.index.get_level_values("Time")[1]
+                last_time = ret.index.get_level_values("Time")[-1]
+
                 for key in [
                     "linear_solve_p",
                     "linear_solve_U",
@@ -192,7 +302,9 @@ def import_results(
                     "update_host_matrix",
                     "retrieve_results",
                     "gko_solve",
+                    "gather",
                 ]
+                df.loc[df["log_id"] == log_hash, "last_time"] = last_time
                 for key in gko_keys:
                     if key in ret.columns:
                         df.loc[df["log_id"] == log_hash, key] = idx_larger_query(
@@ -200,23 +312,30 @@ def import_results(
                         )[key].mean()
                     else:
                         df.loc[df["log_id"] == log_hash, key] = 0
+                        
 
-                deltaT = ret["ClockTime"].dropna().diff()[2:].sum()
+                deltaT = ret["ClockTime"].dropna().diff().values[2:].sum()
                 df.loc[df["log_id"] == log_hash, "deltaT"] = deltaT
+                df.loc[df["log_id"] == log_hash, "case"] = case
+                for line in slurm_logs:
+                    if "Energy Consumed" in line:
+                        tokens = line.split(" ")
+                        df.loc[df["log_id"] == log_hash, "EnergyConsumed"] = float(tokens[-2])
+                    
             except Exception as e:
                 print("import_benchmark_data", e)
                 pass
 
     # skip cases with zero run_time
-    df = df[df["run_time"] > 0]
-
+    if skip_zero_runtime:
+        df = df[df["run_time"] > 0]
     # calculate some further metrics
     # TODO pass that as function
     df["linear_solve_p_per_iter"] = df["linear_solve_p"] / df["number_iterations_p"]
     df["linear_solve_p_percent"] = df["linear_solve_p"] / df["deltaT"] / 1e4
     df["linear_solve_p_ratio"] = df["linear_solve_p"] / df["linear_solve_U"]
-    # df["cells"] = df["resolution"] ** dimension
-    # df["linear_solve_p_per_cell_and_iter"] = df["linear_solve_p_per_iter"] / df["cells"]
+    df["cells"] = df["resolution"] ** 3
+    df["linear_solve_p_per_cell_and_iter"] = df["linear_solve_p_per_iter"] / df["cells"]
 
     # reorder indices a bit
     indices[0], indices[1] = indices[1], indices[0]
