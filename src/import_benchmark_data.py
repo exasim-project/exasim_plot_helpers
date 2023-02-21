@@ -10,47 +10,6 @@ from packaging import version
 
 from helpers import idx_larger_query, idx_keep_only
 
-
-def line_plot(df, x, columns, facet, properties, 
-              fig, axes, kind="line", x_label=None, 
-              facet_is_legend=False, add_to_legend=""):
-    """wrapper around plot"""
-    lines = list(set(df.index.get_level_values(facet)))
-    lines.sort()
-    default_colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-        
-    for i, q in enumerate(columns):
-        for j,line in enumerate(lines):
-            sel = df[df.index.get_level_values(facet) == line]
-            sel = idx_keep_only(sel,  keep=[x])
-            ax = axes[i]
-            legends = properties.get("legends")
-            if facet_is_legend == "final":
-                legend = add_to_legend
-            if facet_is_legend == "add":
-                legend = line + "_" + add_to_legend
-            if not add_to_legend:
-                legend = line
-            f = sel.sort_index().plot(
-                legend=True,
-                label=legend,
-                lw=3,
-                ms=10,
-                kind=kind,
-                ax=ax,
-                linestyle=properties.get("linestyle", lambda x: "-")(line),
-                marker=properties["marker"](line),
-                color=properties.get("color", lambda x: default_colors[j])(line),
-            )
-            
-            if x_label:
-                ax.set_xlabel(x_label[i])
-            if legends:
-                plt.legend(legends)
-            plt.legend(handlelength=5)
-
-
-
 def clean_hash(s):
     return s.replace("hash: ", "").replace("\n", "")
 
@@ -115,6 +74,8 @@ def parse_log_strings(log_content):
             "]solve": ["Solve_Proc", "gko_solve"],
             "copy_x_back": ["Retrieve_Proc", "retrieve_results"],
             "delta t build": ["build_dist", "write_mat_data", "build_repart", "gather"],
+            "piso setup": ["poisson_assembly"],
+            "momentum setup": ["momentum_assembly"],
         }
     )
     keys.update(
@@ -213,7 +174,30 @@ def read_ogl_data_folder(folder, filt, min_version="0.0.0"):
 
     return pd.concat(dfs, ignore_index=True), metadata, logs
 
+def post_process_df(df):
+    df["linear_solve_p_per_iter"] = df["linear_solve_p"] / df["number_iterations_p"]
+    df["linear_solve_p_percent"] = df["linear_solve_p"] / df["deltaT"] / 1e4
+    df["linear_solve_p_ratio"] = df["linear_solve_p"] / df["linear_solve_U"]
+    df["cells"] = df["resolution"] ** 3
+    df["linear_solve_p_per_cell_and_iter"] = df["linear_solve_p_per_iter"] / df["cells"]
 
+    
+    df["linear_solve_U_per_iter"] = df["linear_solve_U"] / df["number_iterations_U"]
+    df["linear_solve_U_per_cell_and_iter"] = df["linear_solve_U_per_iter"] / df["cells"]
+    
+    df["gko_solve_p_per_iter"] = df["gko_solve"] / df["number_iterations_p"]
+    df["gko_solve_p_per_cell_and_iter"] = df["gko_solve_p_per_iter"] / df["cells"]
+    
+    df["gko_overhead"] = df["linear_solve_p"] - df["gko_solve"]
+    df["gko_overhead_percent"] = df["gko_overhead"]/(df["gko_overhead"]+df["gko_solve"])
+    df["gko_overhead_per_iter"] = df["gko_overhead"]/df["linear_solve_p_per_iter"]
+    df["gko_overhead_per_cell"] = df["gko_overhead"]/(df["cells"])
+    df["gko_overhead_per_cell_and_iter"] = df["gko_overhead"]/(df["cells"] * df["linear_solve_p_per_iter"])
+    df["dofs_per_rank"] = df["cells"]/df["mpi_ranks"]
+    df["gko_solve_p_per_local_dof_and_iter"] = df["linear_solve_p_per_iter"] / df["dofs_per_rank"]
+
+    return df
+    
 def import_results(
     path,
     case,
@@ -248,7 +232,9 @@ def import_results(
         "timestamp",
         "update_host_matrix",
         "retrieve_results",
-        "gather"
+        "gather",
+        "poisson_assembly",
+        "momentum_assembly",
     ]
 
     df["solver_p"] = df["solver_p"].transform(
@@ -269,6 +255,8 @@ def import_results(
         df["resolution"] = df["resolution"].transform(lambda x: resolution_map[x])
 
     indices = [c for c in df.columns if c not in data_columns]
+    # add derived indices
+    indices += ["cells", "dofs_per_rank"]
 
     df["linear_solve_p"] = 0
     df["linear_solve_U"] = 0
@@ -302,7 +290,9 @@ def import_results(
                     "update_host_matrix",
                     "retrieve_results",
                     "gko_solve",
+                    "poisson_assembly",
                     "gather",
+                    "momentum_assembly",
                 ]
                 df.loc[df["log_id"] == log_hash, "last_time"] = last_time
                 for key in gko_keys:
@@ -331,11 +321,7 @@ def import_results(
         df = df[df["run_time"] > 0]
     # calculate some further metrics
     # TODO pass that as function
-    df["linear_solve_p_per_iter"] = df["linear_solve_p"] / df["number_iterations_p"]
-    df["linear_solve_p_percent"] = df["linear_solve_p"] / df["deltaT"] / 1e4
-    df["linear_solve_p_ratio"] = df["linear_solve_p"] / df["linear_solve_U"]
-    df["cells"] = df["resolution"] ** 3
-    df["linear_solve_p_per_cell_and_iter"] = df["linear_solve_p_per_iter"] / df["cells"]
+    df = post_process_df(df)
 
     # reorder indices a bit
     indices[0], indices[1] = indices[1], indices[0]
