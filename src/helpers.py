@@ -60,7 +60,7 @@ def idx_keep_only(df, keep):
     return df.reset_index(level=drop_idxs, drop=True)
 
 
-def compute_speedup(df, ref, drop_indices=None, ignore_indices=None):
+def compute_speedup(df, ref: list[tuple], drop_indices=None, ignore_indices=None):
     """Compute and return the speedup compared to a reference."""
     from copy import deepcopy
 
