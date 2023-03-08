@@ -22,7 +22,7 @@ def read(*names, **kwargs):
 
 
 setup(
-    name='ogl-plot-data',
+    name='exasim_plot_helpers',
     version='0.0.0',
     license='BSD-2-Clause',
     description='plotting ogl benchmark results',
@@ -32,7 +32,7 @@ setup(
     ),
     author='Gregor Olenik',
     author_email='go@hpsim.de',
-    url='https://github.com/ogl_plot_data/ogl_plot_data',
+    url='https://github.com/exasim/exasim-plot-helpers.git',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
