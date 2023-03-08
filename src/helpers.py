@@ -20,23 +20,22 @@ def not_equal(a, b):
 
 @dataclass
 class query:
-    idx
-    val
-    operator = equal
+    idx: str
+    val: 'typing.Any'
+    op: 'typing.Any' = equal
 
 
-def idx_query_mask(df: pd.DataFrame, queries: list[query]) -> np.array[bool]:
+def idx_query_mask(df: pd.DataFrame, queries: list[query]) -> np.array:
     """perform idx queries but returns just the mask"""
     mask = np.full(len(df), True)
     for q in queries:
-        idx, val = keys
-        mask = mask & idx_query_single_mask(df, idx, val)
+        mask = mask & idx_query_single_mask(df, q)
     return mask
 
 
 def idx_query_single_mask(df: pd.DataFrame, q: query):
     """Shortcut to select specific index."""
-    return q.op(df.index.get_level_values(q.idx), q.val)
+    return q.op(a=df.index.get_level_values(q.idx), b=q.val)
 
 
 def idx_query(df: pd.DataFrame, queries: list[query]):
@@ -77,7 +76,7 @@ def idx_keep_only(df: pd.DataFrame, keep: list[str]) -> pd.DataFrame:
     return df.reset_index(level=drop_idxs, drop=True)
 
 
-def compute_speedup(df, ref: list[queries], drop_indices=None, ignore_indices=None):
+def compute_speedup(df, ref: list[query], drop_indices=None, ignore_indices=None):
     """Compute and return the speedup compared to a reference."""
     from copy import deepcopy
 
