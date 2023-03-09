@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 
+
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
+
 from dataclasses import dataclass
+from typing import Any
 
 
 def idx_larger_query(df, idx, val):
@@ -29,8 +33,8 @@ class not_equal:
 @dataclass
 class query:
     idx: str
-    val: "typing.Any"
-    op: "typing.Any" = equal
+    val: Any
+    op: Any = equal
 
     def __repr__(self):
         try:
@@ -40,7 +44,7 @@ class query:
         return f"{self.idx}{op}{self.val}"
 
 
-def idx_query_mask(df: pd.DataFrame, queries: list[query]) -> np.array:
+def idx_query_mask(df: pd.DataFrame, queries: list[query]) -> npt.NDArray:
     """perform idx queries but returns just the mask"""
     mask = np.full(len(df), True)
     for q in queries:

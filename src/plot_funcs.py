@@ -1,5 +1,123 @@
 import matplotlib.pyplot as plt
-from helpers import idx_query, idx_keep_only, compute_speedup
+from helpers import idx_query, idx_keep_only, compute_speedup, idx_query_mask
+import pandas as pd
+import numpy as np
+
+
+def dispatch_plot(func, case, ax_handler, *args, **kwargs):
+    """trys to generate a plot and writes to file based on func.__name__ and args"""
+    try:
+        fig, axes = func(*args, **kwargs)
+        data_repository = os.environ.get("EXASIM_DATA_REPOSITORY")
+        system_name = os.environ.get("EXASIM_SYSTEM_NAME")
+        func_args_str = "_".join([f"{k}={v}" for k, v in kwargs.items()])
+        # TODO add experiment name
+        ax_handler(axes)
+        fn = f"{data_repository}/{case}/figs/{system_name}/{func.__name__}_{func_args_str}.png"
+        print("save", fn)
+        fig.savefig(
+            fn,
+            bbox_inches="tight",
+        )
+    except Exception as e:
+        print("failed to plot", func.__name__, e)
+
+
+def facets_over_x(df: pd.DataFrame, legend: str, queries: dict, x: str, y: str):
+    """Plot faceted by a set of queries
+
+    Parameters:
+     - legend: a string formatable by query dict key
+     - queries: a dictionary of query name and a list queries
+     - x: name of the index to plot over
+     - y: name of the column to plot
+
+    Returns:
+     - the figure
+     - the axes
+    """
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+
+    labels = []
+    # generate over different queries
+
+    for name, q in queries.items():
+        query_mask = idx_query_mask(df, q)
+        filtered_df = df[query_mask]
+
+        # keep only x as indices to keep plot axis clean
+        filtered_df = idx_keep_only(filtered_df, [x])
+
+        filtered_df[y].plot()
+        labels.append(legend.format(name))
+
+    axes.legend(labels)
+
+    return fig, axes
+
+
+def facets_relative_to_base_over_x(
+    df: pd.DataFrame, legend: str, base_query: list, x: str, y: str, facet: str
+):
+    """faceted plot normalised values over x
+
+    Parameters:
+     - legend: a string formatable by query dict key
+     - queries: a dictionary of query name and a list queries
+     - x: name of the index to plot over
+     - y: name of the column to plot
+
+    Returns:
+     - the figure
+     - the axes
+    """
+
+    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+
+    labels = []
+    # generate over different partitionings
+    # get base_ranks TODO find a generic way to do this
+
+    base_query_mask = idx_query_mask(df, base_query)
+    not_base_query_mask = np.logical_not(base_query_mask)
+
+    # get available facets for non base case
+    facet_values = set(df[not_base_query_mask].index.get_level_values(facet))
+
+    for facet_value in facet_values:
+        # compute individual speed up
+        # pre filter DataFrame to contain either base or facet values
+        filtered_df = df[
+            (df.index.get_level_values(facet) == facet_value) | base_query_mask
+        ]
+
+        speedup = compute_speedup(
+            filtered_df,
+            base_query,
+            ignore_indices=[facet],
+            drop_indices=["solver"],
+        )
+
+        # remove reference values
+        speedup = speedup[np.logical_not(idx_query_mask(speedup, base_query))]
+
+        # keep only x as indices to keep plot axis clean
+        speedup = idx_keep_only(speedup, [x])
+
+        speedup[y].plot()
+        labels.append(legend.format(facet_value))
+
+    axes.legend(labels)
+
+    return fig, axes
+
+
+def ax_handler_wrapper(x_label, y_label):
+    def ax_handler(axes):
+        axes.set_xlabel(x_label)
+        axes.set_ylabel(y_label)
+
+    return ax_handler
 
 
 def line_plot(
