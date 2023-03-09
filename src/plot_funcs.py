@@ -1,7 +1,10 @@
+import os
+
 import matplotlib.pyplot as plt
-from helpers import idx_query, idx_keep_only, compute_speedup, idx_query_mask
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from helpers import compute_speedup, idx_keep_only, idx_query, idx_query_mask
 
 
 def dispatch_plot(func, case, ax_handler, *args, **kwargs):
