@@ -11,7 +11,6 @@ def idx_larger_query(df, idx, val):
 
 
 class equal:
-    
     def __call__(self, a, b):
         return a == b
 
@@ -20,7 +19,6 @@ class equal:
 
 
 class not_equal:
-    
     def __call__(self, a, b):
         return a != b
 
@@ -28,15 +26,14 @@ class not_equal:
         return "!="
 
 
-
 @dataclass
 class query:
     idx: str
-    val: 'typing.Any'
-    op: 'typing.Any' = equal
+    val: "typing.Any"
+    op: "typing.Any" = equal
 
     def __repr__(self):
-        try: 
+        try:
             op = self.op.__repr__()
         except:
             op = self.op.__name__
@@ -67,7 +64,6 @@ def calc_nodes(df, sel, masks):
     sel: select cases by this index
     masks: maps from index value to ranks per node ie
             [[CUDA, 4], [Default, 76]]
-
     """
     df["nodes"] = df.index.get_level_values("mpi_ranks")
     for sel_value, value in masks:

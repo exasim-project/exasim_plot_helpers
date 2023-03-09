@@ -4,6 +4,7 @@ import flow
 import obr
 import pandas as pd
 
+
 def build_gko_query(field):
     query = " and ".join(
         [
@@ -64,22 +65,20 @@ def build_annotated_query():
     )
 
 
-
 class OpenFOAMProject(flow.FlowProject):
-        pass
+    pass
+
 
 def to_jobs(path: str) -> list:
-    """ initialize a list of jobs from a given path """
+    """initialize a list of jobs from a given path"""
 
     os.chdir(path)
 
     project = OpenFOAMProject().init_project()
     return [j for j in project]
 
+
 def from_query_to_df(jobs: list, query: str, index: list):
-    """
-    """
+    """ """
     res = obr.signac_operations.query_to_dict(jobs, query)
     return pd.DataFrame.from_records([d.result for d in res], index=index).sort_index()
-
-
