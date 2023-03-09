@@ -10,12 +10,23 @@ def idx_larger_query(df, idx, val):
     return df[df.index.get_level_values(idx) > val]
 
 
-def equal(a, b):
-    return a == b
+class equal:
+    
+    def __call__(self, a, b):
+        return a == b
+
+    def __repr__(self):
+        return "=="
 
 
-def not_equal(a, b):
-    return a != b
+class not_equal:
+    
+    def __call__(self, a, b):
+        return a != b
+
+    def __repr__(self):
+        return "!="
+
 
 
 @dataclass
@@ -23,6 +34,13 @@ class query:
     idx: str
     val: 'typing.Any'
     op: 'typing.Any' = equal
+
+    def __repr__(self):
+        try: 
+            op = self.op.__repr__()
+        except:
+            op = self.op.__name__
+        return f"{self.idx}{op}{self.val}"
 
 
 def idx_query_mask(df: pd.DataFrame, queries: list[query]) -> np.array:
@@ -89,7 +107,7 @@ def compute_speedup(df, ref: list[query], drop_indices=None, ignore_indices=None
             df.index = df.index.droplevel(idx)
 
     reference = idx_query(df, ref)
-    ref_drop_idxs = [x[0] for x in ref]
+    ref_drop_idxs = [x.idx for x in ref]
     reference.index = reference.index.droplevel(ref_drop_idxs)
     if ignore_indices:
         reference.index = reference.index.droplevel(ignore_indices[0])

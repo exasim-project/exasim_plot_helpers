@@ -56,6 +56,10 @@ def build_annotated_query():
             "TimeStep",
             "nCells",
             "nSubDomains",
+            "iter_p",
+            "final_p",
+            "final_Ux",
+            "iter_Ux",
         ]
     )
 
