@@ -1,12 +1,43 @@
 #!/usr/bin/env python3
 
 
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from obr.core.queries import query_to_dict
 
-from dataclasses import dataclass
-from typing import Any
+
+@dataclass
+class PlotGroup:
+    name: str
+    queries: list = field(default_factory=list)
+    plot_properties: dict = field(default_factory=dict)
+    jobs: list = field(default_factory=list)
+    df: Any = None
+    color_cycle: Any = field(
+        default_factory=lambda: [
+            "tab:blue",
+            "tab:orange",
+            "tab:green",
+            "tab:red",
+            "tab:purple",
+        ]
+    )
+
+
+def group_jobs(jobs: list, plot_groups: list[PlotGroup]) -> list[PlotGroup]:
+    """groups a list of jobs into several groups"""
+    for group in plot_groups:
+        grouped_jobs = []
+        for queries in group.queries:
+            grouped_jobs += query_to_dict(jobs, queries, strict=True)
+        grouped_job_ids = [j.id for j in grouped_jobs]
+        group.jobs += [job for job in jobs if job.id in grouped_job_ids]
+    return plot_groups
 
 
 def idx_larger_query(df, idx, val):
@@ -96,7 +127,6 @@ def idx_keep_only(df: pd.DataFrame, keep: list[str]) -> pd.DataFrame:
 
 def compute_speedup(df, ref: list[query], drop_indices=None, ignore_indices=None):
     """Compute and return the speedup compared to a reference."""
-    from copy import deepcopy
 
     df = deepcopy(df)
 
@@ -113,8 +143,6 @@ def compute_speedup(df, ref: list[query], drop_indices=None, ignore_indices=None
         reference.index = reference.index.droplevel(ignore_indices[0])
 
     def dropped_divide(df):
-        from copy import deepcopy
-
         df = deepcopy(df)
         df.index = df.index.droplevel(ref_drop_idxs)
         return df
@@ -123,11 +151,16 @@ def compute_speedup(df, ref: list[query], drop_indices=None, ignore_indices=None
         if ignore_indices:
             ignored_idx = x.index.get_level_values(ignore_indices[0])
             x.index = x.index.droplevel(ignore_indices[0])
-
-        ret = reference / dropped_divide(x)
+        print("foo")
+        try:
+            divisor = dropped_divide(x)
+            ret = reference / divisor
+        except:
+            print(f"division failed ref = {reference} div = {divisor}")
         if ignore_indices:
             ret[ignore_indices[0]] = ignored_idx.values
             ret.set_index(ignore_indices[0], append=True, inplace=True)
+        print("bar")
         return ret
 
     res = df.groupby(level=ref_drop_idxs).apply(apply_func)
