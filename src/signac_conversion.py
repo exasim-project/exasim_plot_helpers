@@ -2,7 +2,7 @@ import os
 
 import flow
 import pandas as pd
-from obr.core.queries import Query, query_to_dict
+from obr.core.queries import Query, query_to_dataframe
 
 
 def build_gko_query(field):
@@ -39,6 +39,8 @@ def build_annotated_query() -> list:
             lambda x: Query(key=x),
             [
                 "solver",
+                "host",
+                "timestamp",
                 "preconditioner",
                 "executor",
                 "SolveP",
@@ -50,13 +52,15 @@ def build_annotated_query() -> list:
                 "nCells",
                 "nSubDomains",
                 "iter_p",
-                "final_p",
-                "final_Ux",
-                "iter_Ux",
             ],
         )
     )
-    l.append(Query(key="completed", value=True))
+    # l.append(Query(key="completed", value=True))
+    return l
+
+
+def build_annotated_query_from_list(ls: list) -> list:
+    l = list(map(lambda x: Query(key=x), ls))
     return l
 
 
@@ -73,22 +77,13 @@ def to_jobs(path: str) -> list:
     return [j for j in project]
 
 
-def from_query_to_df(jobs: list, query: str, index: list):
-    """ """
-    # TODO detect variations and group them here
-    res = query_to_dict(jobs, query)
-    df = pd.DataFrame.from_records([d.result[0] for d in res], index=index).sort_index()
-    return df
-
-
-def grouped_from_query_to_df(grouped_jobs: dict[str,list], query: str, index: list) -> dict:
+def grouped_from_query_to_df(
+    grouped_jobs: dict[str, list], query: str, index: list
+) -> dict:
     """ """
     # TODO detect variations and group them here
     ret = dict
     for group_id, jobs in grouped_jobs.items():
         jobs = filter(lambda x: not x.sp.get("has_child", True), jobs)
-        res = query_to_dict(jobs, query)
-        ret[group_id] = pd.DataFrame.from_records(
-            [d.result for d in res], index=index
-        ).sort_index()
+        ret[group_id] = query_to_dataframe(jobs, query, index)
     return ret

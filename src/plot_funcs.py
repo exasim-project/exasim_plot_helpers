@@ -1,49 +1,154 @@
 import os
+import traceback
+import warnings
+from copy import deepcopy
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from helpers import compute_speedup, idx_keep_only, idx_query, idx_query_mask
+from helpers import (DFQuery, compute_speedup, idx_keep_only, idx_query,
+                     idx_query_mask)
 
 
-def dispatch_plot(func, case, ax_handler, append_to_fn, *args, **kwargs):
-    """trys to generate a plot and writes to file based on func.__name__ and args"""
-    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
-    groups, args = args[0], list(args[1:])
-    labels = []
-    try:
-        for group in groups:
-            plot_properties = group.plot_properties
-            plot_properties["color_cycle"] = group.color_cycle
-            legend = group.name + args[0]
-            fig, axes, labels = func(
-                fig, axes, labels, group.df, plot_properties, legend, **kwargs
+@dataclass
+class PlotCampaignSpecifications:
+    """Our measurements are usually indexed by nCells, solver, executor, nSubDomains, preconditioner
+    measurement campaign might select jobs that are distinguished by other categories which are not part of the index. This means the individual results need to be distinguishable a datacolumn eg by the jobid, ogl version hash and another index.
+
+    Examples:
+        - when updating OGL the version hash is different, after runnning the same jobs all indices
+        and jobids are still the same
+        - when comparing different simulation cases, again the indices might be same
+        - exploring a new feature of OGL will create different jobs but the indices are constant
+
+    This dataclass holds the corresponding dataframes for each measurement
+    """
+
+    campaign_name: str
+    plot_collection: dict  # measurement_name: list[PlotSpecifications]
+    dfs: dict[Any]  # measurement_name :  df
+    overwrite_properties: dict  # base: {'linestyle':'--'}
+
+    @classmethod
+    def generate(cls):
+        pass
+
+
+@dataclass
+class PlotSpecification:
+    """Specifies what to plot from a dataframe via DFQueries and basic plot properties such as linestyle and legend"""
+
+    legend: str
+    queries: list = field(default_factory=list)
+    plot_properties: dict = field(default_factory=dict)
+    df: Any = None
+    color_cycle: Any = field(
+        default_factory=lambda: [
+            "tab:blue",
+            "tab:orange",
+            "tab:green",
+            "tab:red",
+            "tab:purple",
+        ]
+    )
+
+
+@dataclass
+class FacetedPlotSpecification:
+    """Collects a list of PlotSpecification for faceting a plot over a dataframe idx"""
+
+    plotGroups: list[PlotSpecification]
+    facet_idx: str
+
+    @classmethod
+    def generate(cls, fix_queries, fix_properties, facet_idx, variable_properties):
+        groups = []
+        variable_queries = []
+        for k, v in variable_properties.items():
+            legend = v.pop("legend")
+            variable_queries.append((legend, [DFQuery(idx=facet_idx, val=k)], v))
+        for legend, var_query, var_properties in variable_queries:
+            properties = fix_properties
+            properties.update(var_properties)
+            groups.append(
+                PlotSpecification(
+                    legend=legend,
+                    queries=fix_queries + var_query,
+                    plot_properties=deepcopy(properties),
+                )
             )
-        data_repository = os.environ.get("EXASIM_DATA_REPOSITORY")
-        system_name = os.environ.get("EXASIM_SYSTEM_NAME")
-        func_args_str = "_".join([f"{k}={v}" for k, v in kwargs.items()])
-        ax_handler(axes)
-        axes.legend(labels)
-        fn = f"{data_repository}/{case}/figs/{system_name}/{func.__name__}_{func_args_str}_{append_to_fn}.png"
-        print("save", fn)
-        fig.savefig(
-            Path(fn),
-            bbox_inches="tight",
-        )
-        return fig, axes
-    except Exception as e:
-        print("failed to plot", func.__name__, e)
-        return fig, axes
+        return FacetedPlotSpecification(plotGroups=groups, facet_idx=facet_idx)
+
+    def get_facet_values(self, df):
+        facet_values = []
+        for plot_group in self.plotGroups:
+            query_mask = idx_query_mask(df, plot_group.queries)
+            filtered_df = df[query_mask]
+            facet_value = set(filtered_df.index.get_level_values(self.facet_idx))
+
+            if not len(facet_value) == 1:
+                raise ValueError(
+                    f"{self.facet_idx} does not produce a unique set of facet_values  {facet_values}"
+                )
+            facet_values.append(list(facet_value)[0])
+        return facet_values
 
 
-def facets_over_x(df: pd.DataFrame, legend: str, queries: dict, x: str, y: str):
-    """Plot faceted by a set of queries
+class PlotDispatcher:
+    def __init__(self, repo_path, storage_schema="image.png"):
+        self.repo_path = repo_path
+        self.storage_schema = storage_schema
+
+    # f"{self.repo_path}/{case}/figs/{system_name}/{func.__name__}_{func_args_str}_{append_to_fn}.png"
+
+    def dispatch_plot(
+        self, func, campaign, ax_handler=lambda x: x, append_to_fn="", **kwargs
+    ):
+        """Trys to generate a plot and writes to file based on func.__name__ and args to a file.
+        It iterates all plot_collections and corresponding dataframes
+        """
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+        labels = []
+        try:
+            for measurement, df in campaign.dfs.items():
+                plot_properties = campaign.plot_collection[measurement]
+                print(kwargs)
+                fig, axes, labels = func(
+                    df,
+                    plot_properties,
+                    kwargs.pop("x"),
+                    kwargs.pop("y"),
+                    fig_axes=(fig, axes),
+                    **kwargs,
+                )
+            func_args_str = "_".join([f"{k}={v}" for k, v in kwargs.items()])
+            ax_handler(axes)
+            fn = self.storage_schema
+            print(f"Save {fn}")
+            fig.savefig(
+                Path(fn),
+                bbox_inches="tight",
+            )
+            return fig, axes
+        except Exception as e:
+            print("failed to plot", __name__, func.__name__, e)
+            traceback.print_tb(e.__traceback__)
+
+            return fig, axes
+
+
+def facets_over_x(
+    df: pd.DataFrame, grouper: FacetedPlotSpecification, x: str, y: str, fig_axes=None
+):
+    """Plot faceted by a set of plot groups
 
     Parameters:
      - legend: a string formatable by query dict key
-     - queries: a dictionary of query name and a list queries
+     - queries: a list of PlotSpecifications
      - x: name of the index to plot over
      - y: name of the column to plot
 
@@ -51,42 +156,40 @@ def facets_over_x(df: pd.DataFrame, legend: str, queries: dict, x: str, y: str):
      - the figure
      - the axes
     """
-    fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+
+    if not fig_axes:
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+    else:
+        fig, axes = fig_axes
 
     labels = []
-    # generate over different queries
 
-    for name, q in queries.items():
-        query_mask = idx_query_mask(df, q)
+    for plot_group in grouper.plotGroups:
+        query_mask = idx_query_mask(df, plot_group.queries)
         filtered_df = df[query_mask]
 
         # keep only x as indices to keep plot axis clean
         filtered_df = idx_keep_only(filtered_df, [x])
 
-        filtered_df[y].plot()
-        labels.append(legend.format(name))
+        filtered_df[y].plot(ax=axes, **plot_group.plot_properties)
+        labels.append(plot_group.legend)
 
     axes.legend(labels)
 
-    return fig, axes
+    return fig, axes, labels
 
 
 def facets_relative_to_base_over_x(
-    fig,
-    axes,
-    labels: list,
     df: pd.DataFrame,
-    plot_properties: dict,
-    legend: str,
-    base_query: list,
+    grouper: FacetedPlotSpecification,
     x: str,
     y: str,
-    facet: str,
+    fig_axes=None,
+    base_query: PlotSpecification = None,
 ):
     """faceted plot normalised values over x
 
     Parameters:
-     - legend: a string formatable by query dict key
      - queries: a dictionary of query name and a list queries
      - x: name of the index to plot over
      - y: name of the column to plot
@@ -94,52 +197,69 @@ def facets_relative_to_base_over_x(
     Returns:
      - the figure
      - the axes
+     - the labels
     """
     # generate over different partitionings
     # get base_ranks TODO find a generic way to do this
+    if not fig_axes:
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(8, 5), sharey=True)
+    else:
+        fig, axes = fig_axes
 
-    base_query_mask = idx_query_mask(df, base_query)
+    base_query_mask = idx_query_mask(df, base_query.queries)
     not_base_query_mask = np.logical_not(base_query_mask)
 
     # get available facets for non base case
-    facet_values = set(df[not_base_query_mask].index.get_level_values(facet))
+    facet_values = grouper.get_facet_values(df[not_base_query_mask])
 
-    color_func = None
-    if plot_properties:
-        color_func = plot_properties.pop("color_cycle", {})
-
-    for i, facet_value in enumerate(facet_values):
+    labels = []
+    for plot_group, facet_value in zip(grouper.plotGroups, facet_values):
         # compute individual speed up
         # pre filter DataFrame to contain either base or facet values
-        filtered_df = df[
-            (df.index.get_level_values(facet) == facet_value) | base_query_mask
-        ]
+
+        average_df = False
+        if df[base_query_mask].index.has_duplicates:
+
+            warnings.warn(
+                f"Found non unique indices for base query DataFrame {df[base_query_mask].index}"
+            )
+            average_df = True
+
+        if df[idx_query_mask(df, plot_group.queries)].index.has_duplicates:
+
+            warnings.warn(
+                f"Found non unique indices for faceted query DataFrame {df[idx_query_mask(df, plot_group.queries)].index}"
+            )
+
+            average_df = True
+
+        filtered_df = df[idx_query_mask(df, plot_group.queries) | base_query_mask]
+
+        if average_df:
+            index_names = filtered_df.index.names
+            filtered_df = filtered_df.groupby(filtered_df.index).mean()
+            index_tuples = filtered_df.reset_index()["index"]
+            filtered_df.index = pd.MultiIndex.from_tuples(
+                index_tuples, names=list(index_names)
+            )
 
         speedup = compute_speedup(
             filtered_df,
-            base_query,
-            ignore_indices=[facet],
+            base_query.queries,
+            # ignore_indices=[facet],
             drop_indices=["solver"],
         )
 
         # remove reference values
-        speedup = speedup[np.logical_not(idx_query_mask(speedup, base_query))]
+        speedup = speedup[np.logical_not(idx_query_mask(speedup, base_query.queries))]
 
         # keep only x as indices to keep plot axis clean
         speedup = idx_keep_only(speedup, [x])
-        print(speedup)
 
-        if not color_func:
-            speedup[y].plot(ax=axes, **plot_properties)
-        else:
-            color = (
-                color_func[i]
-                if isinstance(color_func, list)
-                else color_func[facet_value]
-            )
-            speedup[y].plot(ax=axes, color=color, **plot_properties)
-        labels.append(legend.format(facet_value))
+        speedup[y].plot(ax=axes)  # , **plot_properties)
+        labels.append(plot_group.legend.format(value=facet_value))
 
+    axes.legend(labels)
     return fig, axes, labels
 
 
