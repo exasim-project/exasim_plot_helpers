@@ -10,8 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from helpers import (DFQuery, compute_speedup, idx_keep_only, idx_query,
-                     idx_query_mask)
+from helpers import DFQuery, compute_speedup, idx_keep_only, idx_query, idx_query_mask
 
 
 @dataclass

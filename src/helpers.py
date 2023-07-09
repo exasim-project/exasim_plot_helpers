@@ -158,7 +158,24 @@ def idx_keep_only(df: pd.DataFrame, keep: list[str]) -> pd.DataFrame:
     return df.reset_index(level=drop_idxs, drop=True)
 
 
-def compute_speedup(df, ref: list[DFQuery], drop_indices=None, ignore_indices=None):
+def compute_full_node_normalize(df, ref: list[DFQuery]):
+    """Compute the speedup compared to the full node execution on same host"""
+
+    def get_reference_value(x):
+        """This function is used within apply, hence host are already the same"""
+        cpu_query = [DFQuery("executor", "CPU")]
+        full_node_ranks = max(
+            idx_query(x, ref + cpu_query).index.get_level_values("nSubDomains")
+        )
+        ranks_query = [DFQuery("nSubDomains", full_node_ranks)]
+        return compute_speedup(x, ref + cpu_query + ranks_query, ["solver"])
+
+    return df.groupby(["host"]).apply(get_reference_value)
+
+
+def compute_speedup(
+    df, ref: list[DFQuery], drop_indices=None, ignore_indices=None, inverse=False
+):
     """Compute and return the speedup compared to a reference.
 
     Parameters:
@@ -169,9 +186,6 @@ def compute_speedup(df, ref: list[DFQuery], drop_indices=None, ignore_indices=No
     if df.empty:
         raise ValueError("cannot compute speedup on empty dataframes")
 
-    # select only numeric columns
-    df = df.select_dtypes(include=np.number)
-
     if drop_indices:
         for idx in drop_indices:
             if idx not in df.index.names:
@@ -179,6 +193,12 @@ def compute_speedup(df, ref: list[DFQuery], drop_indices=None, ignore_indices=No
             df.index = df.index.droplevel(idx)
 
     reference = idx_query(df, ref)
+    reference = reference[reference["campaign"] == "OMPI + HOST_BUFFER"]
+    if not reference.index.is_unique:
+        import warnings
+
+        warnings.warn("Reference should have a unique idx")
+
     ref_drop_idxs = [x.idx for x in ref]
     reference.index = reference.index.droplevel(ref_drop_idxs)
     if ignore_indices:
@@ -190,14 +210,28 @@ def compute_speedup(df, ref: list[DFQuery], drop_indices=None, ignore_indices=No
         return df
 
     def apply_func(x):
+        x = x.dropna()
         if ignore_indices:
             ignored_idx = x.index.get_level_values(ignore_indices[0])
             x.index = x.index.droplevel(ignore_indices[0])
         try:
             # make sure that the number of rows is correct
             divisor = dropped_divide(x)
-            ret = reference / divisor
-        except:
+            if inverse:
+                ret = np.divide(divisor, reference, where=divisor.dtypes.eq(np.isreal))
+            else:
+                divisor_non_num = divisor.select_dtypes(exclude=np.number)
+                ref = reference.select_dtypes(include=np.number)
+                divisor = divisor.select_dtypes(include=np.number)
+                ret = ref / divisor
+                try:
+                    for col in divisor_non_num.columns:
+                        ret[col] = divisor_non_num[col]
+                except:
+                    print(col)
+                    pass
+        except Exception as e:
+            print(e)
             print(f"division failed:\nref = {reference}\ndiv = {divisor}")
         if ignore_indices:
             ret[ignore_indices[0]] = ignored_idx.values

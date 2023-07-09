@@ -12,9 +12,6 @@ def build_gko_query(field):
             [
                 f.format(field)
                 for f in [
-                    "solver",
-                    "executor",
-                    "preconditioner",
                     "{}: update_local_matrix_data:",
                     "{}: update_non_local_matrix_data:",
                     "{}_matrix: call_update:",
@@ -23,13 +20,11 @@ def build_gko_query(field):
                     "{}: generate_solver:",
                     "{}: solve:",
                     "{}: copy_x_back:",
-                    "nCells",
-                    "nSubDomains",
                 ]
             ],
         )
     )
-    l.append(Query(key="completed", value=True))
+    # l.append(Query(key="completed", value=True))
     return l
 
 
@@ -40,6 +35,8 @@ def build_annotated_query() -> list:
             [
                 "solver",
                 "host",
+                "campaign",
+                "tags",
                 "timestamp",
                 "preconditioner",
                 "executor",
@@ -52,6 +49,9 @@ def build_annotated_query() -> list:
                 "nCells",
                 "nSubDomains",
                 "iter_p",
+                "cont_error_global",
+                "cont_error_local",
+                "cont_error_cumulative",
             ],
         )
     )
