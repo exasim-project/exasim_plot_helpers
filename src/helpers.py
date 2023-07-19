@@ -10,33 +10,6 @@ import numpy.typing as npt
 import pandas as pd
 from obr.core.queries import query_to_dict
 
-SolverAnnotationKeys = [
-    "MatrixAssemblyU",
-    "MomentumPredictor",
-    "SolveP",
-    "MatrixAssemblyPI:",
-    "MatrixAssemblyPII:",
-    "TimeStep",
-]
-
-
-def build_OGLAnnotationKeys(fields):
-    return [
-        key.format(field)
-        for key in [
-            "{}: update_local_matrix_data:",
-            "{}: update_non_local_matrix_data:",
-            "{}_matrix: call_update:",
-            "{}_rhs: call_update:",
-            "{}: init_precond:",
-            "{}: generate_solver:",
-            "{}: solve:",
-            "{}: copy_x_back:",
-            "{}: solve_multi_gpu",
-        ]
-        for field in fields
-    ]
-
 
 @dataclass
 class JobGroup:

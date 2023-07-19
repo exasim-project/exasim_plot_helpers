@@ -1,14 +1,81 @@
 #!/usr/bin/env python3
-import matplotlib.pyplot as plt
-
 import os
-import pandas as pd
-import Owls as ow
-
+from copy import deepcopy
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import Owls as ow
+import pandas as pd
 from packaging import version
 
-from helpers import idx_larger_query, idx_keep_only
+from helpers import idx_keep_only, idx_larger_query
+
+
+def get_logfile_from_job(job, campaign: str, tags: list[str], fn: str, func):
+    """Convenience function to find latest log file for a given log file type, eg blockMesh, checkMesh and apply a given function
+    Parameter:
+        job: signac job
+        campaign:
+        tags:
+        fn: base file name
+        func: function to apply to file
+    """
+    tag = "/".join(tags)
+    case_path = Path(job.path) / f"{campaign}/{tag}"
+    if not case_path.exists():
+        return
+    root, _, files = next(os.walk(case_path))
+    sel_file = None
+    for file in files:
+        if fn in file and file.endswith("log"):
+            sel_file = f"{root}/{file}"
+
+    if sel_file:
+        return func(sel_file)
+    return
+
+
+def find_logs(job) -> tuple[str, str, str]:
+    """Find and return all solver log files, campaign info and tags from  job instances"""
+    case_path = Path(job.path)
+    if not case_path.exists():
+        return
+
+    root, campaigns, _ = next(os.walk(case_path))
+
+    def find_tags(path: Path, tags: list, tag_mapping):
+        """Recurses into subfolders of path until a system folder is found
+
+        Returns:
+          Dictionary mapping paths to tags -> tag
+        """
+        _, folder, _ = next(os.walk(path))
+        is_case = len(folder) == 0
+        if is_case:
+            tag_mapping[str(path)] = tags
+        else:
+            for f in folder:
+                tags_copy = deepcopy(tags)
+                tags_copy.append(f)
+                find_tags(path / f, tags_copy, tag_mapping)
+        return tag_mapping
+
+    for campaign in campaigns:
+        # check if case folder
+        tag_mapping = find_tags(case_path / campaign, [], {})
+
+        for path, tags in tag_mapping.items():
+            root, _, files = next(os.walk(path))
+            for file in files:
+                if "Foam" in file and file.endswith("log"):
+                    yield f"{root}/{file}", campaign, tags
+
+
+def get_timestamp_from_log(log):
+    """gets the timestamp part from an log file"""
+    log_name = Path(log).stem
+    before = log_name.split("_")[0]
+    return log_name.replace(before + "_", "")
 
 
 def clean_hash(s):
