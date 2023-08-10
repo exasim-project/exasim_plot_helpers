@@ -88,13 +88,13 @@ def build_OGLAnnotationKeys(fields):
 
 def build_transport_eqn_keys():
     # columns names for generated DataFrame
-    col_iter = ["init", "final", "iter"]
+    col_iter = ["Initial residual", "Final residual", "Number iterations"]
 
     # post fix for pressure eqns
-    p_steps = ["_p", "_pFinal"]
+    p_steps = [" p", " pFinal"]
 
     # post fix for momentum components
-    U_components = ["_Ux", "_Uy", "_Uz"]
+    U_components = [" Ux", " Uy", " Uz"]
 
     pIter = LogKey("Solving for p", columns=col_iter, post_fix=p_steps)
     UIter = LogKey("Solving for U", columns=col_iter, post_fix=U_components)
@@ -119,14 +119,17 @@ def generate_log_keys():
     ]
 
     # time based column name
-    col_time = ["time"]
+    col_time = [" [ms]"]
     foam_annotation_keys = [
-        LogKey(search, col_time, append_search_to_col=True)
+        LogKey(search_string=search, columns=col_time, prepend_search_to_col=True)
         for search in SolverAnnotationKeys
     ]
 
     cont_error = [
-        LogKey("time step continuity errors", ["local", "global", "cumulative"])
+        LogKey(
+            "time step continuity errors",
+            ["ContinuityError " + i for i in ["local", "global", "cumulative"]],
+        )
     ]
 
     return {
