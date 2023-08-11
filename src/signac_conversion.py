@@ -1,34 +1,13 @@
 import os
-
 import flow
 import pandas as pd
+
 from obr.core.queries import Query, query_to_dataframe
+from obr.signac_wrapper.operations import OpenFOAMProject
 from Owls.parser.LogFile import LogKey
 
 
-def build_gko_query(field):
-    l = list(
-        map(
-            lambda x: Query(key=x),
-            [
-                f.format(field)
-                for f in [
-                    "{}: update_local_matrix_data:",
-                    "{}: update_non_local_matrix_data:",
-                    "{}_matrix: call_update:",
-                    "{}_rhs: call_update:",
-                    "{}: init_precond:",
-                    "{}: generate_solver:",
-                    "{}: solve:",
-                    "{}: copy_x_back:",
-                ]
-            ],
-        )
-    )
-    return l
-
-
-def build_annotated_query() -> list:
+def build_default_queries() -> list:
     l = list(
         map(
             lambda x: Query(key=x),
@@ -41,34 +20,17 @@ def build_annotated_query() -> list:
                 "preconditioner",
                 "executor",
                 "SolveP",
-                "MomentumPredictor",
-                "MatrixAssemblyU",
-                "MatrixAssemblyPI:",
-                "MatrixAssemblyPII:",
-                "TimeStep",
                 "nCells",
-                "nSubDomains",
-                "iter_p",
-                "cont_error_global",
-                "cont_error_local",
-                "cont_error_cumulative",
+                "numberOfSubDomains",
             ],
         )
     )
     return l
 
 
-SolverAnnotationKeys = [
-    "MatrixAssemblyU",
-    "MomentumPredictor",
-    "SolveP",
-    "MatrixAssemblyPI:",
-    "MatrixAssemblyPII:",
-    "TimeStep",
-]
 
-
-def build_OGLAnnotationKeys(fields):
+def build_OGLAnnotationKeys(fields: list[str]) -> list[str]:
+    """Function to generate search keys for log files based on field name"""
     return [
         key.format(field)
         for key in [
@@ -86,7 +48,7 @@ def build_OGLAnnotationKeys(fields):
     ]
 
 
-def build_transport_eqn_keys():
+def build_transport_eqn_keys() -> list[LogKey]:
     # columns names for generated DataFrame
     col_iter = ["Initial residual", "Final residual", "Number iterations"]
 
@@ -101,7 +63,7 @@ def build_transport_eqn_keys():
     return [pIter, UIter]
 
 
-def generate_log_keys():
+def generate_log_keys() -> dict:
     """This function generates various LogKey instances to analyze log files. Here several types
     of LogKeys are considered:
         1. transp_eqn_keys: for log entries of the form Solving for ?: init, final res. iter
@@ -120,6 +82,16 @@ def generate_log_keys():
 
     # time based column name
     col_time = [" [ms]"]
+
+    SolverAnnotationKeys = [
+        "MatrixAssemblyU",
+        "MomentumPredictor",
+        "SolveP",
+        "MatrixAssemblyPI:",
+        "MatrixAssemblyPII:",
+        "TimeStep",
+    ]
+
     foam_annotation_keys = [
         LogKey(search_string=search, columns=col_time, prepend_search_to_col=True)
         for search in SolverAnnotationKeys
@@ -139,14 +111,24 @@ def generate_log_keys():
         "cont_error": cont_error,
     }
 
+def generate_queries() -> list[Query]:
+    """This function generates coresponding OBR queries to query the values from the job_documents"""
+    log_keys = generate_log_keys()
+    queries = []
 
-def build_annotated_query_from_list(ls: list) -> list:
-    l = list(map(lambda x: Query(key=x), ls))
-    return l
+    # first we generate queries for values from log keys
+    for category, log_key_list in log_keys.items():
+        for log_key in log_key_list:
+            for c in log_key.column_names:
+                queries.append(Query(key=c))
 
+    queries = queries + build_default_queries()
 
-class OpenFOAMProject(flow.FlowProject):
-    pass
+    return queries
+
+def build_queries_from_str_list(ls: list[str]) -> list[Query]:
+    """Convenience function to build a list of queries from a list of key strings"""
+    return list(map(lambda x: Query(key=x), ls))
 
 
 def to_jobs(path: str) -> list:
