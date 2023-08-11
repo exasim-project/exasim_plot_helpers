@@ -28,7 +28,6 @@ def build_default_queries() -> list:
     return l
 
 
-
 def build_OGLAnnotationKeys(fields: list[str]) -> list[str]:
     """Function to generate search keys for log files based on field name"""
     return [
@@ -111,8 +110,9 @@ def generate_log_keys() -> dict:
         "cont_error": cont_error,
     }
 
+
 def generate_queries() -> list[Query]:
-    """This function generates coresponding OBR queries to query the values from the job_documents"""
+    """This function generates corresponding OBR queries to query the values from the job_documents"""
     log_keys = generate_log_keys()
     queries = []
 
@@ -125,6 +125,7 @@ def generate_queries() -> list[Query]:
     queries = queries + build_default_queries()
 
     return queries
+
 
 def build_queries_from_str_list(ls: list[str]) -> list[Query]:
     """Convenience function to build a list of queries from a list of key strings"""
