@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import warnings
+
 from obr.core.queries import query_to_dict
 
 
@@ -136,12 +138,11 @@ def compute_full_node_normalize(df, ref: list[DFQuery]):
 
     def get_reference_value(x):
         """This function is used within apply, hence host are already the same"""
-        cpu_query = [DFQuery("executor", "CPU")]
         full_node_ranks = max(
-            idx_query(x, ref + cpu_query).index.get_level_values("nSubDomains")
+            idx_query(x, ref).index.get_level_values("numberOfSubDomains")
         )
-        ranks_query = [DFQuery("nSubDomains", full_node_ranks)]
-        return compute_speedup(x, ref + cpu_query + ranks_query, ["solver"])
+        ranks_query = [DFQuery("numberOfSubDomains", full_node_ranks)]
+        return compute_speedup(x, ref + ranks_query)
 
     return df.groupby(["host"]).apply(get_reference_value)
 
@@ -166,14 +167,12 @@ def compute_speedup(
             df.index = df.index.droplevel(idx)
 
     reference = idx_query(df, ref)
-    reference = reference[reference["campaign"] == "OMPI + HOST_BUFFER"]
     if not reference.index.is_unique:
-        import warnings
-
         warnings.warn("Reference should have a unique idx")
 
     ref_drop_idxs = [x.idx for x in ref]
     reference.index = reference.index.droplevel(ref_drop_idxs)
+
     if ignore_indices:
         reference.index = reference.index.droplevel(ignore_indices[0])
 
@@ -183,7 +182,6 @@ def compute_speedup(
         return df
 
     def apply_func(x):
-        x = x.dropna()
         if ignore_indices:
             ignored_idx = x.index.get_level_values(ignore_indices[0])
             x.index = x.index.droplevel(ignore_indices[0])

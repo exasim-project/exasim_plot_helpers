@@ -5,6 +5,7 @@ import pandas as pd
 from obr.core.queries import Query, query_to_dataframe
 from obr.signac_wrapper.operations import OpenFOAMProject
 from Owls.parser.LogFile import LogKey
+from pathlib import Path
 
 
 def build_default_queries() -> list:
@@ -12,12 +13,16 @@ def build_default_queries() -> list:
         map(
             lambda x: Query(key=x),
             [
+                "set",
                 "solver",
                 "host",
                 "campaign",
                 "tags",
                 "timestamp",
-                "preconditioner",
+                "solver_p",
+                "solver_U",
+                "precond_p",
+                "precond_U",
                 "executor",
                 "SolveP",
                 "nCells",
@@ -76,7 +81,7 @@ def generate_log_keys() -> dict:
 
     ogl_annotation_keys = [
         LogKey(search, ["proc", "time"], append_search_to_col=True)
-        for search in build_OGLAnnotationKeys(["p"])
+        for search in build_OGLAnnotationKeys(["p", "U"])
     ]
 
     # time based column name
@@ -122,9 +127,7 @@ def generate_queries() -> list[Query]:
             for c in log_key.column_names:
                 queries.append(Query(key=c))
 
-    queries = queries + build_default_queries()
-
-    return queries
+    return queries + build_default_queries()
 
 
 def build_queries_from_str_list(ls: list[str]) -> list[Query]:
@@ -134,11 +137,10 @@ def build_queries_from_str_list(ls: list[str]) -> list[Query]:
 
 def to_jobs(path: str) -> list:
     """initialize a list of jobs from a given path"""
-
     os.chdir(path)
 
     project = OpenFOAMProject().init_project()
-    return [j for j in project]
+    return [j for j in project if (Path(j.path)/"signac_statepoint.json").exists()]
 
 
 def grouped_from_query_to_df(
