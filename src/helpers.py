@@ -201,7 +201,7 @@ def compute_speedup(
                 continue
             df.index = df.index.droplevel(idx)
 
-    res = DataFrame()
+    res = pd.DataFrame()
     for records in refs:
         ref = records["base"]
         case = records["case"]
