@@ -216,8 +216,8 @@ def compute_speedup(
         if ignore_indices:
             reference.index = reference.index.droplevel(ignore_indices[0])
 
-        res = pd.concat(
-            res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)
+        res = pd.concat([
+            res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
         )
 
     return res
