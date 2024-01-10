@@ -148,7 +148,7 @@ def compute_full_node_normalize(df, ref: list[DFQuery]):
 
 def compute_speedup(
     df, refs: list[dict[DFQuery]], drop_indices=None, ignore_indices=None, inverse=False
-) -> DataFrame:
+) -> pd.DataFrame:
     """Compute and return the speedup compared to a reference.
 
     Parameters:
