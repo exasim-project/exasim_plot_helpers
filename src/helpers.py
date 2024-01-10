@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import warnings
+
 from obr.core.queries import query_to_dict
 
 
@@ -136,18 +138,17 @@ def compute_full_node_normalize(df, ref: list[DFQuery]):
 
     def get_reference_value(x):
         """This function is used within apply, hence host are already the same"""
-        cpu_query = [DFQuery("executor", "CPU")]
         full_node_ranks = max(
-            idx_query(x, ref + cpu_query).index.get_level_values("nSubDomains")
+            idx_query(x, ref).index.get_level_values("numberOfSubDomains")
         )
-        ranks_query = [DFQuery("nSubDomains", full_node_ranks)]
-        return compute_speedup(x, ref + cpu_query + ranks_query, ["solver"])
+        ranks_query = [DFQuery("numberOfSubDomains", full_node_ranks)]
+        return compute_speedup(x, ref + ranks_query)
 
     return df.groupby(["host"]).apply(get_reference_value)
 
 
 def compute_speedup(
-    df, ref: list[DFQuery], drop_indices=None, ignore_indices=None, inverse=False
+    df, refs: list[dict[DFQuery]], drop_indices=None, ignore_indices=None, inverse=False
 ):
     """Compute and return the speedup compared to a reference.
 
@@ -155,27 +156,6 @@ def compute_speedup(
         df:
 
     """
-    df = deepcopy(df)
-    if df.empty:
-        raise ValueError("cannot compute speedup on empty dataframes")
-
-    if drop_indices:
-        for idx in drop_indices:
-            if idx not in df.index.names:
-                continue
-            df.index = df.index.droplevel(idx)
-
-    reference = idx_query(df, ref)
-    reference = reference[reference["campaign"] == "OMPI + HOST_BUFFER"]
-    if not reference.index.is_unique:
-        import warnings
-
-        warnings.warn("Reference should have a unique idx")
-
-    ref_drop_idxs = [x.idx for x in ref]
-    reference.index = reference.index.droplevel(ref_drop_idxs)
-    if ignore_indices:
-        reference.index = reference.index.droplevel(ignore_indices[0])
 
     def dropped_divide(df):
         df = deepcopy(df)
@@ -183,7 +163,6 @@ def compute_speedup(
         return df
 
     def apply_func(x):
-        x = x.dropna()
         if ignore_indices:
             ignored_idx = x.index.get_level_values(ignore_indices[0])
             x.index = x.index.droplevel(ignore_indices[0])
@@ -211,6 +190,34 @@ def compute_speedup(
             ret.set_index(ignore_indices[0], append=True, inplace=True)
         return ret
 
-    res = df.groupby(level=ref_drop_idxs).apply(apply_func)
+    df = deepcopy(df)
+
+    if df.empty:
+        raise ValueError("cannot compute speedup on empty dataframes")
+
+    if drop_indices:
+        for idx in drop_indices:
+            if idx not in df.index.names:
+                continue
+            df.index = df.index.droplevel(idx)
+
+    res = pd.DataFrame()
+    for records in refs:
+        ref = records["base"]
+        case = records["case"]
+
+        reference = idx_query(df, ref)
+        if not reference.index.is_unique:
+            warnings.warn("Reference should have a unique idx")
+
+        ref_drop_idxs = [x.idx for x in ref]
+        reference.index = reference.index.droplevel(ref_drop_idxs)
+
+        if ignore_indices:
+            reference.index = reference.index.droplevel(ignore_indices[0])
+
+        res = pd.concat(
+            [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
+        )
 
     return res
