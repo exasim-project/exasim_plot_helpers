@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
@@ -8,8 +9,6 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import warnings
-
 from obr.core.queries import query_to_dict
 
 
@@ -149,11 +148,11 @@ def compute_full_node_normalize(df, ref: list[DFQuery]):
 
 def compute_speedup(
     df, refs: list[dict[DFQuery]], drop_indices=None, ignore_indices=None, inverse=False
-):
+) -> DataFrame:
     """Compute and return the speedup compared to a reference.
 
     Parameters:
-        df:
+        df: the dataframe to compute the speedup on
 
     """
 
@@ -207,6 +206,10 @@ def compute_speedup(
         case = records["case"]
 
         reference = idx_query(df, ref)
+        if reference.empty:
+            warnings.warn(f"Reference DataFrame for query {ref} is empty skipping")
+            continue
+
         if not reference.index.is_unique:
             warnings.warn("Reference should have a unique idx")
 
