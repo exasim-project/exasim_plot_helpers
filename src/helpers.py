@@ -217,7 +217,7 @@ def compute_speedup(
             Reference: {}
             Reference query {}
 
-            """.format(refefence, ref)
+            """.format(reference, ref)
             warnings.warn(warning)
 
         ref_drop_idxs = [x.idx for x in ref]
