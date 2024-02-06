@@ -208,7 +208,14 @@ def compute_speedup(
 
         reference = idx_query(df, ref)
         if not reference.index.is_unique:
-            warnings.warn("Reference should have a unique idx")
+            warning = """Potential problem in dataframe detected:
+            Reference should have a unique idx!
+
+            Reference: {}
+            Reference query {}
+
+            """.format(refefence, ref)
+            warnings.warn(warning)
 
         ref_drop_idxs = [x.idx for x in ref]
         reference.index = reference.index.droplevel(ref_drop_idxs)
