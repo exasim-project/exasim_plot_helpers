@@ -14,15 +14,19 @@ import seaborn
 
 from helpers import DFQuery, compute_speedup, idx_keep_only, idx_query, idx_query_mask
 
+
 def draw_plot_faceted_plot(
     df,
-    x="nCells", y="SolveP [ms]", color="solver_U", 
+    x="nCells",
+    y="SolveP [ms]",
+    color="solver_U",
     column="host",
     style="solver_p",
     units=None,
-    logx=True,logy=True,
-    plot_type="line"
-    ):
+    logx=True,
+    logy=True,
+    plot_type="line",
+):
     hue_order = None
     # Fix color order if solver are requested
     if "solver" in color:
@@ -35,7 +39,7 @@ def draw_plot_faceted_plot(
             if not "GKO" in c:
                 hue_order.append(c)
     # Fix style order if solver are requested
-    style_order = None    
+    style_order = None
     if "solver" in style:
         colors = df[style].unique()
         style_order = []
@@ -44,16 +48,29 @@ def draw_plot_faceted_plot(
                 style_order.append(c)
         for c in colors:
             if not "GKO" in c:
-                style_order.append(c)  
-                
+                style_order.append(c)
+
     if plot_type == "scatter":
         seaborn.scatterplot(x=x, y=y, hue=color, style=style, data=df)
     else:
-        seaborn.relplot(x=x, y=y, hue=color, hue_order=hue_order, size=units, style=style, style_order=style_order, data=df, col=column, kind="line", markers=True)
+        seaborn.relplot(
+            x=x,
+            y=y,
+            hue=color,
+            hue_order=hue_order,
+            size=units,
+            style=style,
+            style_order=style_order,
+            data=df,
+            col=column,
+            kind="line",
+            markers=True,
+        )
     if logx:
-        plt.xscale('log')
+        plt.xscale("log")
     if logy:
-        plt.yscale('log')
+        plt.yscale("log")
+
 
 @dataclass
 class PlotCampaignSpecifications:
