@@ -164,6 +164,7 @@ def compute_speedup(
     # Some debug stuff
     if True:
         logging.warning(f"input dataframe {df.to_dict()}")
+        logging.warning(f"input dataframe {df.index.names}")
         logging.warning(f"input refs {refs}")
         logging.warning(f"input ignore_indices {ignore_indices}")
         logging.warning(f"input exclude {exclude}")
