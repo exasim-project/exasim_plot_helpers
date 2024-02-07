@@ -5,6 +5,7 @@ import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
+import logging
 
 import numpy as np
 import numpy.typing as npt
@@ -215,11 +216,18 @@ def compute_speedup(
 
         reference = idx_query(df, ref)
         if reference.empty:
-            warnings.warn(f"Reference DataFrame for query {ref} is empty skipping")
+            logging.warning(f"Reference DataFrame for query {ref} is empty skipping, skipping")
             continue
 
         if not reference.index.is_unique:
-            warnings.warn("Reference should have a unique idx")
+            warning = """Potential problem in dataframe detected:
+            Reference should have a unique idx!
+
+            Reference: {}
+            Reference query {}
+
+            """.format(reference, ref)
+            logging.warning(warning)
 
         ref_drop_idxs = [x.idx for x in ref]
         reference.index = reference.index.droplevel(ref_drop_idxs)
