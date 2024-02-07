@@ -207,6 +207,7 @@ def compute_speedup(
                     ret[ignore_indices[0]] = ignored_idx.values
                     ret.set_index(ignore_indices[0], append=True, inplace=True)
                 return ret
+            return apply_func
 
     df = deepcopy(df)
 
