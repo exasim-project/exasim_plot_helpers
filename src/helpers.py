@@ -162,7 +162,10 @@ def compute_speedup(
         exclude: List of columns to leave intact
     """
     excluded = None
-    if exclude:
+    do_exclude = False
+    
+    if exclude and all([c in df.columns for c in exclude]):
+        do_exclude = True
         excluded = df[exclude]
 
     def dropped_divide(df):
@@ -239,7 +242,7 @@ def compute_speedup(
             [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
         )
 
-    if exclude:
+    if do_exclude:
         for col in excluded.columns:
             res[col] = excluded[col]
 
