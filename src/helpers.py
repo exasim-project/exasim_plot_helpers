@@ -161,6 +161,36 @@ def compute_speedup(
         df: the dataframe to compute the speedup on
         exclude: List of columns to leave intact
     """
+    # Some debug stuff
+    if True:
+        logging.warning(f"input dataframe {df.to_dict()}")
+        logging.warning(f"input refs {refs}")
+        logging.warning(f"input ignore_indices {ignore_indices}")
+        logging.warning(f"input exclude {exclude}")
+
+    # TODO
+    # df = pd.DataFrame({'Max Speed': [390., 350., 30., 20.], 'Ref Speed': [2., 2., 4., 4.], "Host": ["a", "c", "b", "d"], "nCells":[1,2,3,4], "foo": [0,1,0,1]})
+    # base = [
+    #      {
+    #         "case": [
+    #              helpers.DFQuery(idx="Host", val="a"),
+    #          ],
+    #          "base":[ helpers.DFQuery(idx="Host", val="b")]
+    #      },
+    #      {
+    #         "case": [helpers.DFQuery(idx="Host", val="c")],
+    #         "base": [helpers.DFQuery(idx="Host", val="d"), helpers.DFQuery(idx="nCells", val=4)]
+    #      },
+    #      ]
+    # produces nans
+    #                        Max Speed  Ref Speed
+    #   Host nCells foo
+    #   a    1      0          NaN        NaN <- why are the results nan
+    #        3      0          NaN        NaN <- this is a wrong row
+    #   c    2      1     0.057143        2.0
+
+    # TODO check if ref idx are actually indices of the dataframe
+
     excluded = None
     do_exclude = False
 
@@ -207,6 +237,7 @@ def compute_speedup(
                     ret[ignore_indices[0]] = ignored_idx.values
                     ret.set_index(ignore_indices[0], append=True, inplace=True)
                 return ret
+
             return apply_func
 
     df = deepcopy(df)
