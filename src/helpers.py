@@ -239,7 +239,7 @@ def compute_speedup(
             [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
         )
 
-    if excluded:
+    if exclude:
         for col in excluded.columns:
             res[col] = excluded[col]
 
