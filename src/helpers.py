@@ -147,14 +147,22 @@ def compute_full_node_normalize(df, ref: list[DFQuery]):
 
 
 def compute_speedup(
-    df, refs: list[dict[DFQuery]], drop_indices=None, ignore_indices=None, inverse=False
+    df,
+    refs: list[dict[DFQuery]],
+    drop_indices=None,
+    ignore_indices=None,
+    inverse=False,
+    exclude=None,
 ) -> pd.DataFrame:
     """Compute and return the speedup compared to a reference.
 
     Parameters:
         df: the dataframe to compute the speedup on
-
+        exclude: List of columns to leave intact
     """
+    excluded = None
+    if exclude:
+        excluded = df[exclude]
 
     def dropped_divide(df):
         df = deepcopy(df)
@@ -222,5 +230,9 @@ def compute_speedup(
         res = pd.concat(
             [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
         )
+
+    if excluded:
+        for col in excluded.columns:
+            res[col] = excluded[col]
 
     return res
