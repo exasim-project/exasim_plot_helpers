@@ -173,33 +173,40 @@ def compute_speedup(
         df.index = df.index.droplevel(ref_drop_idxs)
         return df
 
-    def apply_func(x):
-        if ignore_indices:
-            ignored_idx = x.index.get_level_values(ignore_indices[0])
-            x.index = x.index.droplevel(ignore_indices[0])
-        try:
-            # make sure that the number of rows is correct
-            divisor = dropped_divide(x)
-            if inverse:
-                ret = np.divide(divisor, reference, where=divisor.dtypes.eq(np.isreal))
-            else:
-                divisor_non_num = divisor.select_dtypes(exclude=np.number)
-                ref = reference.select_dtypes(include=np.number)
-                divisor = divisor.select_dtypes(include=np.number)
-                ret = ref / divisor
+    class ApplyFunc:
+        def __init__(self, reference):
+            self.reference = reference
+
+        def get_apply_func(self):
+            def apply_func(x):
+                if ignore_indices:
+                    ignored_idx = x.index.get_level_values(ignore_indices[0])
+                    x.index = x.index.droplevel(ignore_indices[0])
                 try:
-                    for col in divisor_non_num.columns:
-                        ret[col] = divisor_non_num[col]
-                except:
-                    print(col)
-                    pass
-        except Exception as e:
-            print(e)
-            print(f"division failed:\nref = {reference}\ndiv = {divisor}")
-        if ignore_indices:
-            ret[ignore_indices[0]] = ignored_idx.values
-            ret.set_index(ignore_indices[0], append=True, inplace=True)
-        return ret
+                    # make sure that the number of rows is correct
+                    divisor = dropped_divide(x)
+                    if inverse:
+                        ret = np.divide(
+                            divisor, self.reference, where=divisor.dtypes.eq(np.isreal)
+                        )
+                    else:
+                        divisor_non_num = divisor.select_dtypes(exclude=np.number)
+                        ref = self.reference.select_dtypes(include=np.number)
+                        divisor = divisor.select_dtypes(include=np.number)
+                        ret = ref / divisor
+                        try:
+                            for col in divisor_non_num.columns:
+                                ret[col] = divisor_non_num[col]
+                        except:
+                            print(col)
+                            pass
+                except Exception as e:
+                    print(e)
+                    print(f"division failed:\nref = {reference}\ndiv = {divisor}")
+                if ignore_indices:
+                    ret[ignore_indices[0]] = ignored_idx.values
+                    ret.set_index(ignore_indices[0], append=True, inplace=True)
+                return ret
 
     df = deepcopy(df)
 
@@ -217,7 +224,7 @@ def compute_speedup(
         ref = records["base"]
         case = records["case"]
 
-        reference = idx_query(df, ref)
+        reference = deepcopy(idx_query(df, ref))
         if reference.empty:
             logging.warning(
                 f"Reference DataFrame for query {ref} is empty skipping, skipping"
@@ -243,7 +250,12 @@ def compute_speedup(
             reference.index = reference.index.droplevel(ignore_indices[0])
 
         res = pd.concat(
-            [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
+            [
+                res,
+                idx_query(df, case)
+                .groupby(level=ref_drop_idxs)
+                .apply(ApplyFunc(reference).get_apply_func()),
+            ]
         )
 
     if res.empty:
