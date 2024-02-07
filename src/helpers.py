@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 
+import logging
 import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
-import logging
 
 import numpy as np
 import numpy.typing as npt
@@ -163,7 +163,7 @@ def compute_speedup(
     """
     excluded = None
     do_exclude = False
-    
+
     if exclude and all([c in df.columns for c in exclude]):
         do_exclude = True
         excluded = df[exclude]
@@ -219,7 +219,9 @@ def compute_speedup(
 
         reference = idx_query(df, ref)
         if reference.empty:
-            logging.warning(f"Reference DataFrame for query {ref} is empty skipping, skipping")
+            logging.warning(
+                f"Reference DataFrame for query {ref} is empty skipping, skipping"
+            )
             continue
 
         if not reference.index.is_unique:
@@ -229,7 +231,9 @@ def compute_speedup(
             Reference: {}
             Reference query {}
 
-            """.format(reference, ref)
+            """.format(
+                reference, ref
+            )
             logging.warning(warning)
 
         ref_drop_idxs = [x.idx for x in ref]
@@ -241,6 +245,10 @@ def compute_speedup(
         res = pd.concat(
             [res, idx_query(df, case).groupby(level=ref_drop_idxs).apply(apply_func)]
         )
+
+    if res.empty:
+        logging.warning(f"Resulting DataFrame is empty")
+        logging.warning(f"Initial Dataframe {df}\n refs {refs}")
 
     if do_exclude:
         for col in excluded.columns:
