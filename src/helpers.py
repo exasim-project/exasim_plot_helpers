@@ -162,7 +162,7 @@ def compute_speedup(
         exclude: List of columns to leave intact
     """
     # Some debug stuff
-    if True:
+    if False:
         logging.warning(f"input dataframe {df.to_dict()}")
         logging.warning(f"input dataframe {df.index.names}")
         logging.warning(f"input refs {refs}")
@@ -229,7 +229,7 @@ def compute_speedup(
                             for col in divisor_non_num.columns:
                                 ret[col] = divisor_non_num[col]
                         except:
-                            print(col)
+                            print("exeception in col", col)
                             pass
                 except Exception as e:
                     print(e)
