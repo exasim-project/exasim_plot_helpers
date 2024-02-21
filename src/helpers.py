@@ -115,7 +115,7 @@ class DFQuery:
     op: Any = equal()
 
     def to_tuple(self):
-        return (idx, val, op)
+        return (self.idx, self.val, self.op)
 
     def __repr__(self):
         try:
