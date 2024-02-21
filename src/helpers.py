@@ -100,7 +100,7 @@ def val_queries_mask(df, idx_val_pairs: list[tuple]):
      - idx_val_pairs a list of tuples of (idx, value, predicate)
     Returns the resulting mask
     """
-    mask = np.ones(df.shape[0])
+    mask = np.full(df.shape[0], True)
     for idx, val, pred in idx_val_pairs:
         mask = np.logical_and(mask, pred(df[idx], val))
     return df[mask]
