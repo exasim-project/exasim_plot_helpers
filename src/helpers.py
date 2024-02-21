@@ -67,6 +67,45 @@ class not_equal:
         return "!="
 
 
+class geq:
+    def __call__(self, a, b):
+        return a >= b
+
+    def __repr__(self):
+        return ">="
+
+
+class lt:
+    def __call__(self, a, b):
+        return a < b
+
+    def __repr__(self):
+        return "<"
+
+
+def val_queries(df, idx_val_pairs: list[tuple]):
+    """Performs queries on a dataframe based on column values instead of indices
+    Parameter:
+     - df the dataframe for which to compute the mask
+     - idx_val_pairs a list of tuples of (idx, value, predicate)
+    Returns: The resulting DataFrame
+    """
+    return df[val_queries_mask(df, idx_val_pairs)]
+
+
+def val_queries_mask(df, idx_val_pairs: list[tuple]):
+    """Performs queries on a dataframe based on column values instead of indices
+    Parameter:
+     - df the dataframe for which to compute the mask
+     - idx_val_pairs a list of tuples of (idx, value, predicate)
+    Returns the resulting mask
+    """
+    mask = np.ones(df.shape[0])
+    for idx, val, pred in idx_val_pairs:
+        mask = np.logical_and(mask, pred(df[idx], val))
+    return df[mask]
+
+
 @dataclass
 class DFQuery:
     """A query for dataframe indices"""
@@ -74,6 +113,9 @@ class DFQuery:
     idx: str
     val: Any
     op: Any = equal()
+
+    def to_tuple():
+        return (idx, val, op)
 
     def __repr__(self):
         try:
