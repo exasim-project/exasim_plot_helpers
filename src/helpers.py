@@ -103,7 +103,7 @@ def val_queries_mask(df, idx_val_pairs: list[tuple]):
     mask = np.full(df.shape[0], True)
     for idx, val, pred in idx_val_pairs:
         mask = np.logical_and(mask, pred(df[idx], val))
-    return df[mask]
+    return mask
 
 
 @dataclass
